@@ -1,0 +1,253 @@
+---
+title: "Vital City assignment: Crime in NYC"
+author: "Alex Knorre"
+format: pdf
+editor: visual
+geometry:
+  - left=.75in
+  - right=.75in
+  - textwidth=8in
+---
+
+```{r, warning=FALSE, message=F, echo=F}
+library(ggplot2)
+library(sf)
+library(dplyr)
+library(viridis)
+library(kableExtra)
+library(fable)
+library(tsibble)
+library(lubridate)
+library(ggpubr)
+
+
+nyc <- readRDS("../data/datasets/nyc.rds")
+nyc <- nyc %>% 
+  arrange(desc(shootings_total)) %>% 
+  mutate(cumsum = cumsum(shootings_total),
+         perc_conc = round(cumsum/sum(shootings_total),5))
+
+
+nyc_50pctshoot <- nyc %>% 
+  filter(perc_conc < .5) %>% 
+  mutate(shootings_yearly = shootings_total / 7)
+
+ch <- readRDS("../data/datasets/chicago.rds")
+ch <- ch %>% 
+  arrange(desc(shootings_total)) %>% 
+  mutate(cumsum = cumsum(shootings_total),
+         perc_conc = round(cumsum/sum(shootings_total),5))
+
+
+ph <- readRDS("../data/datasets/philadelphia.rds")
+ph <- ph %>% 
+  arrange(desc(shootings_total)) %>% 
+  mutate(cumsum = cumsum(shootings_total),
+         perc_conc = round(cumsum/sum(shootings_total),5))
+
+
+
+```
+
+## Section 1: Shootings in New York City
+
+To look at the concentration of crime, I use two main bits of data. **First**, I access the [shooting victims database published by NYPD](https://data.cityofnewyork.us/Public-Safety/NYPD-Shooting-Incident-Data-Historic-/833y-fsy8) (2015-2021), with 2021 being the last full year available, and look at lethal and non-lethal shootings together as the single indicator of crime. Homicides are probably the most important type of incident for crime analysis in terms of its official detection and its social and personal harm. Some assaults and robberies might end up unreported to the police, but not a death of a person. Besides, approximately 80% of homicides in the United States are committed with the use of firearms, so looking at lethal shootings means we are looking at the majority of homicides. At the same time, whether the shooting will be lethal or not is almost random, depending on the injury place, and time to emergency medical help. In short, shootings are a reliable indicator of local violence. **Second**, I use census tracts as basic geographical units of analysis from the latest American Community Survey (2021). I made the reproducible code for all the analyses presented in this piece available at [Github](https://github.com/alexeyknorre/vc_assignment). With these technicalities aside, let me present my findings.
+
+```{r, echo=FALSE,eval=F}
+sum(nyc$y2021)
+nyc %>% filter(y2021 > 0) %>% nrow
+nyc %>% filter(y2021 > 0) %>% summarise(total_pop = sum(total_pop))
+
+
+```
+
+### A third of places accounts for 50% of shootings in NYC
+
+In 2021, there were 2,011 victims of shootings in NYC, a maximum since 2015. However, these shootings did not happen uniformly across the city. Across 2,327 census tracts of New York City, only 767, or 32% of places, experienced at least one shooting during 2015. Population-wise, these 767 census tracts account for 3,3 million residents of NYC, meaning that 63% of people living in the city did not have a single shooting in their neighborhood.
+
+Some shootings also happen randomly and rarely in locations that do not usually have much disorder and crime. For example, a single shooting in 2021 with several injured victims can make even a relatively safe area in the center of Manhattan seem like a dangerous place. Other locations are the actual hotspots, meaning that firearm violence there is stable and happens often. Because of this, let us look at the places that have had steady levels of shootings over the years.
+
+The figure above shows where half of all shootings over 2015-2021 happened. These 237 census tracts have 1.2 million residents which have a disproportionate burden of gun violence in their neighborhoods.
+
+```{r, warning=FALSE, message=F, echo=F, fig.width=8,fig.height=8}
+#| label: fig-nyctop50shoot
+#| fig-cap: "Most violent NYC census tracts where 50% of all shootings in 2015-2021 happened."
+ggplot() +
+  geom_sf(data = nyc %>% st_geometry(),
+          fill = NA, color = gray(.5), lwd = 0.1)+
+   geom_sf(data = nyc_50pctshoot, lwd = 0.1,
+           aes(fill = shootings_total)) +
+      scale_fill_viridis(option = "magma",direction = -1)+
+  labs(fill = "# of shootings (2015-2021)") +
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+
+### Most shootings happen in neighborhoods with concentrated disadvantage and racial and ethnical segregation
+
+Let's zoom in on three tracts with the most severe gun violence problem, which are depicted below. The area in Northern Manhattan had a total of 16 shootings in 2021; the tract near Broadway Junction east of Brooklyn had 11; and the neighborhood near Red Hook west of Brooklyn had 10. While not the maximum for 2021, these areas are top-3 in terms of total shootings over the last years. While geographically far away from each other, what makes these tracts similar is their socioeconomic profile: the ones in Red Hook and Broadway Junction had a yearly median household income of \$15K, over 50% of residents living below the poverty, with almost a quarter of them unemployed.
+
+This close association of crime and victimization with the measures of concentrated disadvantage such as financial opportunities and employment has long been known in studies of crime. In Table 1, I summarize some of the measures of the concentrated disadvantage across the whole city, then shootings-free areas, areas with some shootings, and tracts heavily ridden with firearm violence. There is a clear gradient: residents with higher incomes and steady jobs tend to live in areas with less violence, and vice versa. Moreover, places with higher rates of shootings are more racially and ethnically segregated. In the 10% of the most violent neighborhoods of New York City where half of all shootings happen, the yearly shooting rate per 100,000 residents is 54, with a corresponding rate of firearm homicides of roughly 10, twice the national average. On average, the racial and ethnical composition of these neighborhoods is 47% Black and African American and 35% Hispanic. This contrasts with the city averages, saying that the burden of violence is disproportionately held by the minoritized groups.
+
+### However, New York City is substantially safer than Chicago and Philadelphia
+
+Table 1 also presents similar estimates for the comparably large cities of Chicago and Philadelphia. What stands out is that even the most violent neighborhoods in New York City are still safer in terms of firearm victimization than Chicago and Philadelphia in general. Compared across areas containing half of all shooting incidents, Chicago has almost 10 times more shootings per person than NYC, and Philadelphia has 6 times more, even with a somewhat similar level of socioeconomic disadvantage.
+
+### Takeaway: Violence prevention policies could benefit from the local context
+
+This analysis shows that firearm violence in New York City is concentrated across a small number of economically disadvantaged places and neighborhoods. What is known in criminology and preliminary shown here is that crime follows something similar to a Pareto principle: a small number of places contribute to the majority of crime incidents. Focusing on this small subset would reap the most gain in terms of crime prevention. This idea is an integral part of a series of crime prevention strategies, such as focused deterrence and hotspot policing.
+
+![Three census tracts with the most shootings over 2015-2021. Red circles are shootings (artificially jittered).](images/nyc_shootings_top3.png)
+
+```{r, echo=F}
+#| tbl-cap: "Socioeconomic profile of areas with and without shootings in New York City, Chicago, and Philadelphia."
+
+prepare_tab <- function(nyc){
+tab_nyc_general <- nyc %>% st_drop_geometry() %>% 
+  summarise(income = median(median_household_income),
+            poverty = median(pct_poor),
+            unemployed = median(pct_unemployed),
+            black = median(pct_black),
+            hispanic = median(pct_hispanic),
+            yearly_shooting_rate = sum(shootings_total) / 7 / sum(total_pop) * 100000,
+            pop = sum(total_pop))
+
+
+nyc_50pctshoot <- nyc %>% 
+  filter(perc_conc < .5) %>% 
+  mutate(shootings_yearly = shootings_total / 7)
+
+tab_nyc_crimefree <- nyc %>% st_drop_geometry() %>% 
+  filter(shootings_total == 0) %>% 
+  summarise(income = median(median_household_income),
+            poverty = median(pct_poor),
+            unemployed = median(pct_unemployed),
+            black = median(pct_black),
+            hispanic = median(pct_hispanic),
+            yearly_shooting_rate = sum(shootings_total) / 7 / sum(total_pop) * 100000,
+            pop = sum(total_pop))
+
+tab_nyc_shootings <- nyc  %>% st_drop_geometry() %>% 
+  filter(shootings_total > 0) %>% 
+  summarise(income = median(median_household_income),
+            poverty = median(pct_poor),
+            unemployed = median(pct_unemployed),
+            black = median(pct_black),
+            hispanic = median(pct_hispanic),
+            yearly_shooting_rate = sum(shootings_total) / 7 / sum(total_pop) * 100000,
+            pop = sum(total_pop))
+
+tab_nyc_top50 <- nyc_50pctshoot %>% st_drop_geometry() %>% 
+  summarise(income = round(median(median_household_income),0),
+            poverty = median(pct_poor),
+            unemployed = median(pct_unemployed),
+            black = median(pct_black),
+            hispanic = median(pct_hispanic),
+            yearly_shooting_rate = sum(shootings_total) / 7 / sum(total_pop) * 100000,
+            pop = sum(total_pop))
+
+tab <-  data.table::rbindlist(list(tab_nyc_general,
+               tab_nyc_crimefree,
+               tab_nyc_shootings,
+               tab_nyc_top50)) 
+tab$subset <- c("Whole city","No shootings","At least one shooting","50% of shootings")
+return(tab)
+}
+
+tab_nyc <- prepare_tab(nyc = nyc)
+tab_ch <- prepare_tab(nyc = ch)
+tab_ph <- prepare_tab(nyc = ph)
+
+tab <- data.table::rbindlist(list(
+  tab_nyc,tab_ch,tab_ph))
+
+
+tab %>% 
+  select(subset,yearly_shooting_rate, income,
+         poverty, unemployed, black, hispanic) %>% 
+  mutate(income = round(income / 1000,1),
+         yearly_shooting_rate = round(yearly_shooting_rate,1),
+         poverty = round(poverty * 100,1),
+         unemployed = round(unemployed * 100,1),
+         black = round(black * 100,1),
+         hispanic = round(hispanic * 100,1)) %>% 
+  setNames(.,c("Subset","Yearly shooting rate per 100K",
+               "Median household income (thousands $)","% in poverty",
+               "% unemployed","% Black","% Hispanic")) %>% 
+  kable(., booktabs = T) %>%
+  kable_styling(latex_options = "scale_down") %>% 
+  pack_rows("New York City", 1, 4) %>% 
+  pack_rows("Chicago", 5, 8) %>% 
+  pack_rows("Philadelphia", 9, 12) %>% 
+  column_spec(2:3, width = "2.5cm")
+```
+
+```{r, echo=F, eval=F, warning=F, message=F}
+nyc_50pctshoot[1:3,]$GEOID
+
+crime <- read.csv("../data/shootings_csv/New York.csv") %>% 
+    select(lng,lat,year, shooting_type) %>% 
+    st_as_sf(., coords = c("lng", "lat"),
+             crs = 4326, agr = "constant") %>% 
+    st_transform(crs = st_crs(nyc_50pctshoot))
+  
+grid_crime <- st_join(crime, nyc_50pctshoot[1:3,], join = st_within, left = T) %>% 
+  filter(!is.na(GEOID))
+
+grid_crime %>% filter(GEOID %in% nyc_50pctshoot[3,]$GEOID) %>% 
+  st_jitter(factor = 0.05) %>%
+  mapview(.,cex = 10, col.region = "red", alpha = 1) +
+  mapview(nyc_50pctshoot[3,] %>% st_boundary())
+
+```
+
+{{< pagebreak >}}
+
+# Section 2.1: Signs of urban vitality
+
+The concept of urban vitality has been around for decades. Architects, urban planners, and urban anthropologists have produced a vast literature on its measures and correlates ([Li et al, 2022](https://www.sciencedirect.com/science/article/pii/S0264275121003814), [Lopes and Camanho, 2012](https://link.springer.com/article/10.1007/s11205-012-0106-9)). With the cursory reading of this literature as well as my hunch, I would categorize the indicators of urban vitality into several broad groups:
+
+-   Connectivity: transportation networks, pedestrian and car traffic, walkability and bikability;
+
+-   Land use and built environment: density and diversity of various types of buildings, parks, and other types of urban space; street lighting, trees, and greenery; developed public spaces;
+
+-   Social diversity, measured by residents of various cultural and professional backgrounds as well as tourists;
+
+-   Safety and public order: clean streets, the subjective feeling of safety,  the perception of place management and keeping order, local crime rates;
+
+-   Opportunities to become a resident: bustling job market, developed housing, attractive schools and universities.
+
+Some of the indicators can be derived from publicly available administrative data. For example, the NYC Department of City Planning maintains [the PLUTO database](https://www1.nyc.gov/site/planning/data-maps/open-data/dwn-pluto-mappluto.page) with data on hundred thousand building parcels on land use in the city and contains information on every single building or other pieces of land, including its type. Similarly, there are datasets with roads and other transportation networks, which can be leveraged to provide structured information about city connectivity. Other datasets might be commercially available, for example, detailed information on pedestrian traffic using mobile phone data. Virtually for every possible way to measure or operationalize urban vitality, there is probably already compiled dataset. Some of them would be publicly accessible, whereas others might need contact with city officials or business entities.
+
+To approach a project like this, I would first invest some time in strategizing and planning. I would start with the goal: what's the ultimate idea behind measuring urban vitality? One way to approach this would be to focus on a mega-theme of criminal justice and crime. What seems to be associated with more or less public safety, fear of crime, and criminal victimization? This is where current evidence paves the way.
+
+First, the current evidence tells much about the effect of the urban landscape directly on crime. Better street lighting decreases crime ([Chalfin et al, 2021](https://link.springer.com/article/10.1007/s10940-020-09490-6)), greening and trash removal in vacant lots reduces shootings ([Moyer et al., 2018](https://ajph.aphapublications.org/doi/10.2105/AJPH.2018.304752)), business improvement districts help to maintain public order and safety ([Cook and MacDonald, 2011](https://www.jstor.org/stable/41236986)). More generally, careful modification of the built environment can affect crime ([MacDonald, 2015](https://www.journals.uchicago.edu/doi/full/10.1086/681558)). Compiling the data about these in New York City might be beneficial for the research community and broader public as well as serve as a resource for journalism within the Vital City, and would add to evidence-based understanding of urban vitality and crime.
+
+Second, I would probably think about capturing the subjective feeling of safety and fear of crime of people across the different parts of the city. This would augment the traditional approach of analyzing official crime data by asking residents directly: do they feel safe in their neighborhood? What drives their feeling about public safety? What, according to them, are the main local safety issues? Such a survey (specifically of residents of NYC, with sampling representative of major city districts) would allow us to better understand the balance between objective and subjective indicators of public safety.
+
+# Section 2.2: Trends in crime
+
+I extracted the monthly counts of crime complaints and, for each of the crime types (murder, rape, robbery, felony assault, burglary, grand larceny, motor vehicle theft, and petit larceny), estimated an ETS model that decomposes the time series into Error, Trend, and Seasonality. I extract deseasonalized trend component to look at the general trends among these crimes. Then, using the estimated models, I also predict the counts of each crime for each month of 2023. Figure 3 summarizes these trends and predictions.
+
+### After the 2015-2020 decline, post-2020 crime is steadily rising
+
+One thing that can be inferred from the crime time series is that shortly after the onset of the 2020 pandemic almost all types of crime started rising in New York City. The COVID lockdowns seemingly affected property crime, and larcenies and robberies experienced a dip in the first half of 2020. This is likely to be related to the shift of routine activities in the city during the period: people were staying home and many businesses were on hold. However, the reader can see that the trends started increasing after 2021. Except for rapes, which are one of the most underreported types of crime, the level of property and violent crime in 2021-2022 has exceeded the steady levels that were observed before 2020. This probably means that New York City has entered a new stage of increased crime, which has not happened in the last decade.
+
+The major conclusion here is that crime now is significantly higher that in the years before. This puts a new challenge for law enforcement in NYC. Particularly worrying is the increase in murders, which is likely related to the post-COVID spike in shooting violence all around the country. In 2016-2019, the average monthly count of homicides was slightly less than 30. During 2022, murders now are at 45-50, with roughly 50% growth.
+
+### Motor vehicle theft and the heated car market
+
+One specific trend that has a good explanation is the rise in stolen cars. In 2022, there were almost twice as many cars stolen monthly as two years before. This is likely to be associated with the increase in the prices for used cars in the US market, attributed to the supply chain crisis and resulting insufficient supply of newly manufactured cars. The increased demand and resulting increase in prices made stealing a car a more lucrative opportunity for car thieves. However, with the normalization of supply chains and more new cars available for purchase (["The steep plunge in used cars prices", CNN](https://www.cnn.com/2023/01/16/business/used-car-prices/index.html)), we will likely see that the motor vehicle thefts will be diminishing in New York City in 2023.
+
+![Trends and predictions for monthly crime in New York City.](images/trends.png)
+
+### Shootings decrease, probably due to increased weapon possession enforcement
+
+Since the onset of the COVID-19 pandemic and immediately after the protests following the murder of George Floyd, shootings have been on the rise nationally. In contrast to the bulk of the property and violent crime, shootings were one of the few crimes that were growing up during the time, sparking a discussion about a new epidemic of interpersonal gun violence. It is still not clear why shootings increased, but some of the probable causes include the changes in policing (fewer arrests), lockdown-related emotional distress, and shifts in routines activities ([Kim and Philips, 2021](https://www.sciencedirect.com/science/article/pii/S0047235221000039)).
+
+The analysis of shootings in NYC also shows that the city went through an increase in shootings in the middle of 2020. This increase followed into 2021, marking an upwards shift in the base level of monthly shootings. However, as Figure 4 shows, during 2022 shooting started to gradually decrease.
+
+The second panel in Figure 4 shows the monthly count of arrests for weapon possession. First, the reader can see the sudden increase in the second half of 2020. This shows that law enforcement has reacted to the spike in shootings by proactively policing the weapon-carrying on the street of New York City. Even though the number of these arrests decreased after the first months of 2021, there are still more firearm-related arrests than before by approximately 25%. Generally, this can be interpreted as an effective response to the gun violence pandemic by increasing the risk of comprehension for those who are about to commit a shooting. The data for the last months of 2022 shows a positive trend: with arrests for gun possession increasing, shootings are gradually getting lower. While this is a very preliminary piece of evidence, this might mean that the current firearm prevention policy seems to be effective at curbing gun violence.
+
+![Trends for shootings and weapon possession arrests.](images/trends_shootings.png)
+
